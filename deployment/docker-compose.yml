@@ -1,0 +1,159 @@
+# Docker Compose Configuration
+# Enterprise Facial Authentication System
+
+version: '3.8'
+
+services:
+  # ============================================
+  # Authentication Service
+  # ============================================
+  auth_service:
+    build:
+      context: ..
+      dockerfile: deployment/Dockerfile
+      target: application
+    container_name: facial_auth_api
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://facial_auth:secure_password@db:5432/facial_auth_db
+      - REDIS_URL=redis://redis:6379/0
+      - ENVIRONMENT=production
+      - DEBUG=false
+      - SECRET_KEY=${SECRET_KEY:-change-this-in-production}
+      - ENCRYPTION_KEY=${ENCRYPTION_KEY:-change-this-encryption-key}
+    volumes:
+      - ./weights:/app/weights
+      - ./data:/app/data
+      - ./logs:/app/logs
+    depends_on:
+      - db
+      - redis
+    networks:
+      - facial_auth_network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # ============================================
+  # Database Service (PostgreSQL)
+  # ============================================
+  db:
+    image: postgres:15-alpine
+    container_name: facial_auth_db
+    restart: unless-stopped
+    environment:
+      - POSTGRES_USER=facial_auth
+      - POSTGRES_PASSWORD=secure_password
+      - POSTGRES_DB=facial_auth_db
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - facial_auth_network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U facial_auth"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ============================================
+  # Redis Service (Caching)
+  # ============================================
+  redis:
+    image: redis:7-alpine
+    container_name: facial_auth_redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
+    networks:
+      - facial_auth_network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ============================================
+  # Nginx Reverse Proxy
+  # ============================================
+  nginx:
+    image: nginx:alpine
+    container_name: facial_auth_nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./ssl:/etc/nginx/ssl:ro
+    depends_on:
+      - auth_service
+    networks:
+      - facial_auth_network
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # ============================================
+  # Prometheus (Metrics)
+  # ============================================
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: facial_auth_prometheus
+    restart: unless-stopped
+    ports:
+      - "9090:9090"
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    networks:
+      - facial_auth_network
+
+  # ============================================
+  # Grafana (Visualization)
+  # ============================================
+  grafana:
+    image: grafana/grafana:latest
+    container_name: facial_auth_grafana
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+    volumes:
+      - grafana_data:/var/lib/grafana
+    depends_on:
+      - prometheus
+    networks:
+      - facial_auth_network
+
+# ============================================
+# Networks
+# ============================================
+networks:
+  facial_auth_network:
+    driver: bridge
+
+# ============================================
+# Volumes
+# ============================================
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+  prometheus_data:
+    driver: local
+  grafana_data:
+    driver: local
+
