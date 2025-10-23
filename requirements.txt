@@ -13,8 +13,8 @@ pydantic-settings==2.1.0
 # ============================================
 # Deep Learning Frameworks
 # ============================================
-torch==2.1.0
-torchvision==0.16.0
+torch>=2.6.0
+torchvision>=0.21.0
 onnx==1.15.0
 onnxruntime-gpu==1.16.3  # Use onnxruntime for CPU-only
 facenet-pytorch==2.5.3
