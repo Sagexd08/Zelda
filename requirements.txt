@@ -16,7 +16,7 @@ pydantic-settings==2.1.0
 torch>=2.6.0
 torchvision>=0.21.0
 onnx==1.15.0
-onnxruntime-gpu==1.16.3  # Use onnxruntime for CPU-only
+onnxruntime==1.16.3  # CPU-only runtime for Render
 facenet-pytorch==2.5.3
 insightface==0.7.3
 
@@ -82,6 +82,7 @@ python-json-logger==2.0.7
 # ============================================
 streamlit==1.29.0
 streamlit-webrtc==0.47.1
+pyarrow==14.0.1  # Using a pre-built wheel version
 
 # ============================================
 # Development & Testing

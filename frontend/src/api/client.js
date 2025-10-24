@@ -3,7 +3,7 @@ import axios from 'axios';
 // For Vercel deployment, we need to use the production API URL
 const API_BASE_URL = import.meta.env.VITE_API_URL || 
   (window.location.hostname.includes('vercel.app') 
-    ? 'https://zelda-facial-auth-api.onrender.com' // Updated with actual Render.com backend URL
+    ? 'https://zelda-facial-auth-api.onrender.com' // Confirmed Render.com backend URL
     : 'http://localhost:8000');
 
 const apiClient = axios.create({
