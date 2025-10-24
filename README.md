@@ -1,4 +1,11 @@
-# Enterprise-Grade Facial Authentication System
+# Enterprise-Grade Facial Authentication System 🔐
+
+[![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/)
+[![FastAPI](https://img.shields.io/badge/FastAPI-0.104+-00a393.svg)](https://fastapi.tiangolo.com)
+[![React](https://img.shields.io/badge/React-18.2+-61dafb.svg)](https://reactjs.org)
+[![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
+
+A modern, full-stack web application for enterprise-grade facial authentication powered by advanced AI and machine learning.
 
 [![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/)
 [![PyTorch](https://img.shields.io/badge/PyTorch-2.0+-red.svg)](https://pytorch.org/)
@@ -120,6 +127,14 @@ A production-ready ML-driven facial authentication system with multi-layer secur
 ## 🚀 Installation
 
 ### Prerequisites
+
+**System Requirements:**
+- Python 3.9+ 
+- Node.js 18+
+- 8GB RAM (16GB recommended)
+- GPU with CUDA support (optional, for better performance)
+
+**Development Tools:**
 
 - Python 3.9 or higher
 - CUDA 11.8+ (optional, for GPU acceleration)

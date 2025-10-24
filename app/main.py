@@ -1,6 +1,6 @@
 
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.exceptions import RequestValidationError
@@ -13,6 +13,9 @@ from prometheus_client import make_asgi_app, Counter, Histogram
 from app.core.config import settings
 from app.core.database import init_db
 from app.api import routes
+from app.api.websocket import websocket_endpoint
+from fastapi.staticfiles import StaticFiles
+import os
 
 REQUEST_COUNT = Counter(
     'facial_auth_requests_total',
@@ -113,6 +116,11 @@ async def general_exception_handler(request: Request, exc: Exception):
 
 app.include_router(routes.router, prefix="/api/v1", tags=["Authentication"])
 
+# WebSocket endpoint
+@app.websocket("/ws/{client_id}")
+async def websocket_route(websocket, client_id: str):
+    await websocket_endpoint(websocket, client_id)
+
 @app.get("/")
 async def root():
     return {
@@ -137,6 +145,28 @@ async def health_check():
 if settings.PROMETHEUS_ENABLED:
     metrics_app = make_asgi_app()
     app.mount("/metrics", metrics_app)
+
+# Serve frontend static files
+frontend_build_path = os.path.join(os.path.dirname(__file__), "..", "frontend", "dist")
+if os.path.exists(frontend_build_path):
+    app.mount("/assets", StaticFiles(directory=os.path.join(frontend_build_path, "assets")), name="assets")
+    
+    @app.get("/{full_path:path}")
+    async def serve_frontend(full_path: str):
+        from fastapi.responses import FileResponse
+        
+        # Don't serve frontend for API routes
+        if full_path.startswith("api/") or full_path.startswith("ws/"):
+            raise HTTPException(status_code=404)
+        
+        file_path = os.path.join(frontend_build_path, full_path)
+        
+        # If file exists, serve it
+        if os.path.exists(file_path) and os.path.isfile(file_path):
+            return FileResponse(file_path)
+        
+        # Otherwise, serve index.html (for client-side routing)
+        return FileResponse(os.path.join(frontend_build_path, "index.html"))
 
 if __name__ == "__main__":
     import uvicorn
