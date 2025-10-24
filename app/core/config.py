@@ -103,7 +103,7 @@ class Settings(BaseSettings):
     RATE_LIMIT_PERIOD: int = 60
 
     CORS_ENABLED: bool = True
-    CORS_ORIGINS: List[str] = ["http://localhost:3000", "http://localhost:8080"]
+    CORS_ORIGINS: List[str] = ["http://localhost:5173", "http://localhost:3000", "https://zelda-facial-auth.vercel.app"]
     CORS_ALLOW_CREDENTIALS: bool = True
 
     ENABLE_METRICS: bool = True

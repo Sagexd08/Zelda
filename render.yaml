@@ -1,0 +1,12 @@
+services:
+  - type: web
+    name: zelda-facial-auth-api
+    env: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: cd app && uvicorn main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.9.0
+      - key: CORS_ORIGINS
+        value: https://zelda-facial-auth.vercel.app
+    healthCheckPath: /health
