@@ -1,6 +1,5 @@
 import axios, { AxiosError } from 'axios'
 import { API_BASE_URL } from '../utils/constants'
-import { supabase } from '../lib/supabase'
 
 export interface RegisterResponse {
   success: boolean

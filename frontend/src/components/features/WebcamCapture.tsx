@@ -6,11 +6,10 @@ import { motion, AnimatePresence } from 'framer-motion'
 
 interface WebcamCaptureProps {
   onCapture?: (images: string | string[]) => void
-  autoCapture?: boolean
   multipleCaptures?: boolean
 }
 
-const WebcamCapture = ({ onCapture, autoCapture = false, multipleCaptures = false }: WebcamCaptureProps) => {
+const WebcamCapture = ({ onCapture, multipleCaptures = false }: WebcamCaptureProps) => {
   const webcamRef = useRef<Webcam>(null)
   const [capturedImages, setCapturedImages] = useState<string[]>([])
   const [showCamera, setShowCamera] = useState(false)

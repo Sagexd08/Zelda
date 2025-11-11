@@ -7,7 +7,6 @@ import { Card } from '../components/ui/card'
 import { Button } from '../components/ui/button'
 import { Badge } from '../components/ui/badge'
 import { Progress } from '../components/ui/progress'
-import Spinner from '../components/ui/Spinner'
 import Plasma from '../components/effects/Plasma'
 import { authenticateUser, type AuthenticateResponse } from '../services/api'
 

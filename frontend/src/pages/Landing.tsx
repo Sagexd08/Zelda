@@ -10,16 +10,12 @@ import {
   UserPlus,
   BarChart3,
   CheckCircle2,
-  Scan,
   Brain,
   Cpu,
   Database,
   Shield,
   TrendingUp,
   Clock,
-  Users,
-  Globe,
-  Code,
   Layers
 } from 'lucide-react'
 import Plasma from '../components/effects/Plasma'
@@ -316,7 +312,7 @@ const Landing = () => {
 
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 sm:gap-8">
               <TooltipProvider>
-                {features.map((feature, index) => {
+                {features.map((feature) => {
                   const Icon = feature.icon
                   return (
                     <Tooltip key={feature.title}>

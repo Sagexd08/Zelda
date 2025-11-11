@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { motion } from 'framer-motion'
-import { UserPlus, Upload, Camera, CheckCircle2, AlertCircle, Sparkles, Activity } from 'lucide-react'
+import { UserPlus, Upload, Camera, CheckCircle2, AlertCircle, Activity } from 'lucide-react'
 import { toast } from 'sonner'
 import { Card } from '../components/ui/card'
 import { Button } from '../components/ui/button'

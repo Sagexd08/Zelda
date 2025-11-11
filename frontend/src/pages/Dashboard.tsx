@@ -11,14 +11,10 @@ import {
   Zap
 } from 'lucide-react'
 import {
-  LineChart,
-  Line,
   AreaChart,
   Area,
   BarChart,
   Bar,
-  PieChart,
-  Pie,
   Cell,
   XAxis,
   YAxis,
@@ -30,7 +26,7 @@ import {
 import { Card } from '../components/ui/card'
 import { Badge } from '../components/ui/badge'
 import { getSystemInfo, getHealth } from '../services/api'
-import { getAllUsers, getAuthLogs } from '../lib/supabase'
+import { getAllUsers } from '../lib/supabase'
 
 const Dashboard = () => {
   const [systemInfo, setSystemInfo] = useState<any>(null)
@@ -39,11 +35,10 @@ const Dashboard = () => {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const [sysInfo, healthData, usersData, logsData] = await Promise.all([
+        const [sysInfo, healthData, usersData] = await Promise.all([
           getSystemInfo(),
           getHealth(),
           getAllUsers().catch(() => []),
-          getAuthLogs(100).catch(() => [])
         ])
         setSystemInfo(sysInfo)
         setHealth(healthData)
@@ -68,11 +63,6 @@ const Dashboard = () => {
     failed: Math.floor(Math.random() * 20) + 5,
   }))
 
-  const performanceData = Array.from({ length: 30 }, (_, i) => ({
-    day: `Day ${i + 1}`,
-    accuracy: 98 + Math.random() * 2,
-    latency: 80 + Math.random() * 40,
-  }))
 
   const modelData = [
     { name: 'ArcFace', accuracy: 99.8, color: '#667eea' },
@@ -81,11 +71,6 @@ const Dashboard = () => {
     { name: 'Liveness CNN', accuracy: 98.5, color: '#4facfe' },
   ]
 
-  const livenessData = [
-    { name: 'Genuine', value: 850, color: '#10b981' },
-    { name: 'Spoof Detected', value: 45, color: '#ef4444' },
-    { name: 'Uncertain', value: 15, color: '#f59e0b' },
-  ]
 
   const stats = [
     {

@@ -1,6 +1,6 @@
 import * as React from 'react'
 import { motion } from 'framer-motion'
-import { cn } from '../../lib/utils'
+import { cn } from '@/lib/utils'
 
 export interface SkeletonProps extends React.HTMLAttributes<HTMLDivElement> {
   variant?: 'default' | 'circular' | 'text' | 'rectangular'
