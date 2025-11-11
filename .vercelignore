@@ -1,0 +1,26 @@
+# Ignore Python backend for Vercel deployment
+app/
+*.py
+requirements.txt
+*.db
+*.sqlite
+*.sqlite3
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+.venv/
+training/
+tests/
+notebooks/
+demo/
+scripts/
+docs/
+*.egg-info/
+setup.py
+pytest.ini
+supabase_schema.sql
+
