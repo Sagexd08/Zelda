@@ -15,8 +15,9 @@ pydantic-settings==2.1.0
 # ============================================
 torch>=2.6.0
 torchvision>=0.21.0
-onnx==1.15.0
-onnxruntime==1.16.3  # CPU-only runtime for Render
+# onnx removed - not used in runtime, requires cmake to build
+# Use onnxruntime for inference instead
+onnxruntime==1.16.3  # CPU-only runtime for inference
 facenet-pytorch==2.5.3
 insightface==0.7.3
 
