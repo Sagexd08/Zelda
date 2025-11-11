@@ -14,6 +14,8 @@ A modern, full-stack web application for enterprise-grade facial authentication 
 
 A production-ready ML-driven facial authentication system with multi-layer security, adaptive learning, and advanced anti-spoofing capabilities.
 
+👉 For the latest backend/front-end/training gap assessment, review [`docs/system_audit.md`](docs/system_audit.md).
+
 ## 🌟 Features
 
 ### Core Capabilities
@@ -31,11 +33,15 @@ A production-ready ML-driven facial authentication system with multi-layer secur
 - **GDPR Compliance**: User data deletion endpoint
 - **Audit Logging**: Anonymized authentication logs
 
-### Advanced Features
+### Advanced Features ⚡
+- **Attention-Based Fusion**: Multi-head attention for optimal embedding combination
+- **Vision Transformers**: State-of-the-art ViT architecture for face recognition
+- **Model Optimization**: INT8 quantization, pruning, knowledge distillation
+- **Federated Learning**: Privacy-preserving distributed training infrastructure
+- **Differential Privacy**: Rigorous privacy guarantees with noise mechanisms
+- **AutoML**: Automated hyperparameter tuning with Optuna
 - **Bias Monitoring**: Track performance across demographic groups
-- **Multimodal Fusion**: Optional voice recognition layer
 - **Quality Assessment**: Image sharpness, brightness, pose validation
-- **Incremental Learning**: Add users without full retraining
 - **Edge Deployment**: ONNX export for Jetson Nano / Raspberry Pi
 
 ---
@@ -278,11 +284,6 @@ wget https://github.com/sirius-ai/MobileFaceNet_Pytorch/raw/master/model.pth \
 #### Liveness Models
 
 ```bash
-# Liveness ResNet18 - Train your own or use pretrained
-# See training/ directory for instructions
-
-# MiDaS Depth Estimator - 28MB
-# Automatically downloaded by torch.hub on first use
 ```
 
 ### Model Summary
@@ -441,44 +442,57 @@ jupyter notebook notebooks/evaluate_system.ipynb
 
 ---
 
-## 🐳 Deployment
+## 🚀 Running the Project Locally
 
-### Docker Compose (Recommended)
+### Quick Start
 
-```bash
-cd deployment
-docker-compose up -d
-```
+1. **Install Python dependencies:**
+   ```bash
+   pip install -r requirements.txt
+   ```
 
-Access services:
-- API: http://localhost:8000
-- Grafana: http://localhost:3000
-- Prometheus: http://localhost:9090
+2. **Set up environment:**
+   ```bash
+   # Copy example env file (if .env doesn't exist)
+   cp env.example .env
+   ```
 
-### Kubernetes
+3. **Initialize database:**
+   ```bash
+   python -c "from app.core.database import init_db; init_db()"
+   ```
 
-```bash
-# Apply configurations
-kubectl apply -f deployment/k8s/
+4. **Start the backend server:**
+   ```bash
+   # Windows
+   run_backend.bat
+   
+   # Or manually:
+   python run_backend.py
+   ```
+   
+   Backend will be available at: http://localhost:8000
+   API documentation: http://localhost:8000/docs
 
-# Check status
-kubectl get pods -n facial-auth
+5. **Start the frontend (in a new terminal):**
+   ```bash
+   # Windows
+   run_frontend.bat
+   
+   # Or manually:
+   cd frontend
+   npm install  # First time only
+   npm run dev
+   ```
+   
+   Frontend will be available at: http://localhost:5173
 
-# View logs
-kubectl logs -f deployment/auth-service -n facial-auth
-```
+### Development Notes
 
-### Production Checklist
-
-- [ ] Generate secure SECRET_KEY and ENCRYPTION_KEY
-- [ ] Configure SSL certificates
-- [ ] Set up PostgreSQL with replication
-- [ ] Enable rate limiting and CORS
-- [ ] Configure Prometheus alerts
-- [ ] Set up backup strategy
-- [ ] Review security headers in nginx.conf
-- [ ] Enable monitoring and logging
-- [ ] Test disaster recovery procedures
+- Backend uses SQLite by default (configured in `.env`)
+- Backend auto-reloads on code changes
+- Frontend uses Vite dev server with hot module replacement
+- API client is configured to connect to `http://localhost:8000` in development
 
 ---
 
@@ -515,6 +529,20 @@ Hardware: Intel i7-9700K @ 3.60GHz, NVIDIA RTX 3080
 
 ---
 
+## 🧪 Testing
+
+### Testing Suite ✓
+- **Unit Tests**: Comprehensive model and service tests
+- **Integration Tests**: End-to-end workflow validation
+- **E2E Tests**: Browser automation with Playwright
+- **Performance Benchmarks**: Latency and throughput testing
+- **Coverage Reporting**: Code coverage metrics
+
+Run tests with:
+```bash
+pytest tests/
+```
+
 ## 🤝 Contributing
 
 Contributions are welcome! Please read [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
@@ -522,9 +550,17 @@ Contributions are welcome! Please read [CONTRIBUTING.md](CONTRIBUTING.md) for gu
 ### Development Setup
 
 ```bash
+# Quick setup
+chmod +x scripts/dev_setup.sh
+./scripts/dev_setup.sh
+
+# Or manually:
 # Install dev dependencies
 pip install -r requirements.txt
-pip install black flake8 mypy pytest
+pip install black flake8 mypy pytest pre-commit
+
+# Install pre-commit hooks
+pre-commit install
 
 # Run tests
 pytest tests/
@@ -535,6 +571,16 @@ black app/ training/
 # Lint
 flake8 app/ training/
 ```
+
+### Code Quality
+
+This project enforces high code quality standards:
+- **Black**: Consistent code formatting
+- **Flake8**: Style guide enforcement
+- **MyPy**: Static type checking
+- **Pylint**: Additional linting
+- **Bandit**: Security vulnerability scanning
+- **Pre-commit**: Automated checks before commit
 
 ---
 

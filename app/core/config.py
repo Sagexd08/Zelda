@@ -1,16 +1,17 @@
 
 from typing import List, Optional
-from pydantic import field_validator
+from pydantic import field_validator, model_validator
 from pydantic_settings import BaseSettings
 import torch
 from pathlib import Path
+from secrets import token_urlsafe
 
 class Settings(BaseSettings):
 
     APP_NAME: str = "Facial Authentication System"
     APP_VERSION: str = "1.0.0"
     DEBUG: bool = False
-    ENVIRONMENT: str = "production"
+    ENVIRONMENT: str = "development"
 
     API_HOST: str = "0.0.0.0"
     API_PORT: int = 8000
@@ -28,6 +29,13 @@ class Settings(BaseSettings):
 
     DATABASE_URL: str = "sqlite:///./facial_auth.db"
     ENCRYPTION_KEY: str = "change-this-encryption-key"
+    
+    # Supabase configuration
+    SUPABASE_URL: str = "https://grtnutwjmlhpdekllbxl.supabase.co"
+    SUPABASE_ANON_KEY: str = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdydG51dHdqbWxocGRla2xsYnhsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjI2OTU0NDcsImV4cCI6MjA3ODI3MTQ0N30.7QYuaztLjajQD3Serppa6CNXeesN7N_Qu0Pz04nOpB4"
+    SUPABASE_SERVICE_KEY: Optional[str] = None
+    SUPABASE_JWT_SECRET: str = "FUyqyH6GPuACY0YeO4o2Pdm68IDC5P2S1JWFtjNAq0ZvMKWjBPU+h1k5C8hHM6GbNngHbnkBYuwG8Yx00dUGfg=="
+    USE_SUPABASE: bool = True  # Set to True to use Supabase instead of SQLAlchemy
 
     DEVICE: str = "auto"
 
@@ -64,7 +72,7 @@ class Settings(BaseSettings):
     MIN_VIDEO_FRAMES: int = 30
     BLINK_DETECTION_THRESHOLD: float = 0.2
 
-    MIN_REGISTRATION_SAMPLES: int = 5
+    MIN_REGISTRATION_SAMPLES: int = 1
     MAX_REGISTRATION_SAMPLES: int = 10
     REGISTRATION_QUALITY_THRESHOLD: float = 0.80
 
@@ -87,6 +95,10 @@ class Settings(BaseSettings):
 
     MAX_BATCH_SIZE: int = 32
     INFERENCE_TIMEOUT_SECONDS: int = 5
+
+    MAX_UPLOAD_BYTES: int = 5 * 1024 * 1024  # 5 MB
+    USER_ID_MAX_LENGTH: int = 64
+    USER_ID_PATTERN: str = r"^[A-Za-z0-9_\-]+$"
 
     ENABLE_REDIS_CACHE: bool = False
     REDIS_URL: str = "redis://localhost:6379/0"
@@ -129,6 +141,21 @@ class Settings(BaseSettings):
             return [origin.strip() for origin in v.split(',')]
         return v
 
+    @field_validator('DEBUG', mode='before')
+    @classmethod
+    def normalize_debug(cls, value):
+        if isinstance(value, bool):
+            return value
+        if isinstance(value, str):
+            lowered = value.strip().lower()
+            truthy = {'1', 'true', 'yes', 'on'}
+            falsy = {'0', 'false', 'no', 'off', 'warn'}
+            if lowered in truthy:
+                return True
+            if lowered in falsy:
+                return False
+        return bool(value)
+
     def get_device(self) -> torch.device:
         if self.DEVICE == "auto":
             return torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -139,6 +166,26 @@ class Settings(BaseSettings):
 
     def get_challenge_types(self) -> List[str]:
         return [c.strip() for c in self.CHALLENGE_TYPES.split(',')]
+
+    @model_validator(mode="after")
+    def enforce_security_and_limits(self):
+        env = (self.ENVIRONMENT or "").lower()
+
+        if self.MAX_UPLOAD_BYTES <= 0:
+            raise ValueError("MAX_UPLOAD_BYTES must be a positive integer")
+
+        if env == "production":
+            if not self.SECRET_KEY or self.SECRET_KEY == "change-this-secret-key-in-production":
+                raise ValueError("SECRET_KEY must be set for production environment")
+            if not self.ENCRYPTION_KEY or self.ENCRYPTION_KEY == "change-this-encryption-key":
+                raise ValueError("ENCRYPTION_KEY must be set for production environment")
+        else:
+            if not self.SECRET_KEY or self.SECRET_KEY == "change-this-secret-key-in-production":
+                self.SECRET_KEY = token_urlsafe(32)
+            if not self.ENCRYPTION_KEY or self.ENCRYPTION_KEY == "change-this-encryption-key":
+                self.ENCRYPTION_KEY = token_urlsafe(32)
+
+        return self
 
     class Config:
         env_file = ".env"

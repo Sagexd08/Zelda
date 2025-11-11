@@ -6,6 +6,7 @@ from datetime import datetime
 from app.core.database import Session, User, Embedding, LivenessSignature
 from app.core.config import settings
 from app.core.security import security_manager
+from app.database import supabase_client
 from app.models.face_detector import get_face_detector
 from app.models.face_aligner import get_face_aligner
 from app.models.embedding_extractor import get_embedding_extractor
@@ -37,9 +38,15 @@ class RegistrationService:
         if len(face_images) > settings.MAX_REGISTRATION_SAMPLES:
             face_images = face_images[:settings.MAX_REGISTRATION_SAMPLES]
 
-        existing_user = db.query(User).filter(User.user_id == user_id).first()
-        if existing_user:
-            return False, {'error': 'User already exists'}
+        # Check if user exists
+        if settings.USE_SUPABASE:
+            existing_user = supabase_client.get_user_from_db(user_id)
+            if existing_user:
+                return False, {'error': 'User already exists'}
+        else:
+            existing_user = db.query(User).filter(User.user_id == user_id).first()
+            if existing_user:
+                return False, {'error': 'User already exists'}
 
         valid_embeddings = []
         quality_scores = []
@@ -67,35 +74,75 @@ class RegistrationService:
         mean_embeddings = self._compute_mean_embeddings(valid_embeddings)
 
         try:
-            new_user = User(
-                user_id=user_id,
-                created_at=datetime.utcnow(),
-                is_active=True
-            )
-            db.add(new_user)
-            db.flush()
+            if settings.USE_SUPABASE:
+                # Use Supabase
+                user_data = {
+                    'user_id': user_id,
+                    'created_at': datetime.utcnow().isoformat(),
+                    'is_active': True,
+                    'threshold_confidence': 0.5,
+                }
+                new_user = supabase_client.create_user_in_db(user_data)
+                
+                if not new_user:
+                    return False, {'error': 'Failed to create user in database'}
+                
+                # Store embeddings - convert to dict format for Supabase
+                embedding_dict = {}
+                for model_name, embedding in mean_embeddings.items():
+                    # Convert numpy array to list
+                    embedding_dict[model_name] = embedding.tolist()
+                
+                # Store embedding in Supabase
+                supabase_client.store_embedding(
+                    user_id=user_id,
+                    embedding=embedding_dict,
+                    quality_score=float(np.mean(quality_scores)),
+                    liveness_score=float(np.mean(liveness_scores)),
+                    is_primary=True
+                )
+                
+                # Store liveness signature
+                from app.database.supabase_client import get_supabase_client
+                supabase = get_supabase_client()
+                supabase.table("liveness_signatures").insert({
+                    'user_id': user_id,
+                    'sample_count': len(valid_embeddings),
+                    'confidence_score': float(np.mean(liveness_scores)),
+                    'created_at': datetime.utcnow().isoformat(),
+                }).execute()
+                
+            else:
+                # Use SQLAlchemy
+                new_user = User(
+                    user_id=user_id,
+                    created_at=datetime.utcnow(),
+                    is_active=True
+                )
+                db.add(new_user)
+                db.flush()
 
-            embedding_record = Embedding(
-                user_id=new_user.id,
-                arcface_embedding=security_manager.encrypt_embedding(mean_embeddings['arcface']) if 'arcface' in mean_embeddings else None,
-                facenet_embedding=security_manager.encrypt_embedding(mean_embeddings['facenet']) if 'facenet' in mean_embeddings else None,
-                mobilefacenet_embedding=security_manager.encrypt_embedding(mean_embeddings['mobilefacenet']) if 'mobilefacenet' in mean_embeddings else None,
-                fusion_embedding=security_manager.encrypt_embedding(mean_embeddings['fusion']) if 'fusion' in mean_embeddings else None,
-                quality_score=float(np.mean(quality_scores)),
-                is_primary=True,
-                created_at=datetime.utcnow()
-            )
-            db.add(embedding_record)
+                embedding_record = Embedding(
+                    user_id=new_user.id,
+                    arcface_embedding=security_manager.encrypt_embedding(mean_embeddings['arcface']) if 'arcface' in mean_embeddings else None,
+                    facenet_embedding=security_manager.encrypt_embedding(mean_embeddings['facenet']) if 'facenet' in mean_embeddings else None,
+                    mobilefacenet_embedding=security_manager.encrypt_embedding(mean_embeddings['mobilefacenet']) if 'mobilefacenet' in mean_embeddings else None,
+                    fusion_embedding=security_manager.encrypt_embedding(mean_embeddings['fusion']) if 'fusion' in mean_embeddings else None,
+                    quality_score=float(np.mean(quality_scores)),
+                    is_primary=True,
+                    created_at=datetime.utcnow()
+                )
+                db.add(embedding_record)
 
-            liveness_sig = LivenessSignature(
-                user_id=new_user.id,
-                sample_count=len(valid_embeddings),
-                confidence_score=float(np.mean(liveness_scores)),
-                created_at=datetime.utcnow()
-            )
-            db.add(liveness_sig)
+                liveness_sig = LivenessSignature(
+                    user_id=new_user.id,
+                    sample_count=len(valid_embeddings),
+                    confidence_score=float(np.mean(liveness_scores)),
+                    created_at=datetime.utcnow()
+                )
+                db.add(liveness_sig)
 
-            db.commit()
+                db.commit()
 
             return True, {
                 'user_id': user_id,
@@ -108,7 +155,8 @@ class RegistrationService:
             }
 
         except Exception as e:
-            db.rollback()
+            if not settings.USE_SUPABASE and db:
+                db.rollback()
             return False, {'error': f'Database error: {str(e)}'}
 
     def _process_registration_image(
@@ -219,22 +267,32 @@ class RegistrationService:
 
     def delete_user(
         self,
-        db: Session,
+        db: Optional[Session],
         user_id: str
     ) -> Tuple[bool, str]:
         try:
-            user = db.query(User).filter(User.user_id == user_id).first()
+            if settings.USE_SUPABASE:
+                # Use Supabase
+                success = supabase_client.delete_user_from_db(user_id)
+                if success:
+                    return True, f"User {user_id} deleted successfully"
+                else:
+                    return False, "User not found"
+            else:
+                # Use SQLAlchemy
+                user = db.query(User).filter(User.user_id == user_id).first()
 
-            if not user:
-                return False, "User not found"
+                if not user:
+                    return False, "User not found"
 
-            db.delete(user)
-            db.commit()
+                db.delete(user)
+                db.commit()
 
-            return True, f"User {user_id} deleted successfully"
+                return True, f"User {user_id} deleted successfully"
 
         except Exception as e:
-            db.rollback()
+            if not settings.USE_SUPABASE and db:
+                db.rollback()
             return False, f"Deletion failed: {str(e)}"
 
 _registration_service_instance: Optional[RegistrationService] = None

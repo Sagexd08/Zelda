@@ -1,6 +1,6 @@
 
 from typing import List, Optional
-from fastapi import APIRouter, Depends, UploadFile, File, HTTPException, status
+from fastapi import APIRouter, Depends, UploadFile, File, HTTPException, status, Form, Query
 from pydantic import BaseModel, Field
 import numpy as np
 import cv2
@@ -8,13 +8,24 @@ from io import BytesIO
 
 from app.core.database import get_db, Session
 from app.core.config import settings
+from typing import Optional
+from fastapi import Depends
 from app.services.registration_service import get_registration_service
 from app.services.authentication_service import get_authentication_service
 from app.services.identification_service import get_identification_service
 from app.services.adaptive_learning_service import get_adaptive_learning_service
 from app.utils.challenge import get_challenge_validator
+from app.utils.validation import validate_user_id
 
 router = APIRouter()
+
+# Conditional database dependency
+def get_db_or_none():
+    """Returns db session if not using Supabase, None otherwise"""
+    if settings.USE_SUPABASE:
+        return None
+    else:
+        return next(get_db())
 
 class RegisterRequest(BaseModel):
     user_id: str = Field(..., description="Unique user identifier")
@@ -56,49 +67,117 @@ class ChallengeResponse(BaseModel):
     expires_at: str
 
 def decode_image(file: UploadFile) -> np.ndarray:
+    contents = None
     try:
+        # Read file contents
         contents = file.file.read()
+        
+        # Reset file pointer for potential re-read
+        file.file.seek(0)
 
+        if not contents:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Empty file received"
+            )
+
+        if len(contents) > settings.MAX_UPLOAD_BYTES:
+            raise HTTPException(
+                status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+                detail=f"Uploaded image exceeds limit of {settings.MAX_UPLOAD_BYTES // (1024 * 1024)}MB"
+            )
+
+        # Convert bytes to numpy array
         nparr = np.frombuffer(contents, np.uint8)
 
+        # Decode image
         image = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
 
         if image is None:
-            raise ValueError("Failed to decode image")
+            raise ValueError("Failed to decode image. File may not be a valid image format.")
+
+        if image.size == 0:
+            raise ValueError("Decoded image is empty")
 
         return image
 
-    except Exception as e:
+    except HTTPException:
+        # Re-raise HTTP exceptions as-is
+        raise
+    except ValueError as e:
+        # Re-raise value errors with proper HTTP exception
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Invalid image file: {str(e)}"
         )
+    except Exception as e:
+        # Catch any other exceptions
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Error processing image file: {str(e)}"
+        )
     finally:
-        file.file.close()
+        # Ensure file is closed
+        if file.file:
+            try:
+                file.file.close()
+            except:
+                pass
 
 @router.post("/register", response_model=RegisterResponse)
 async def register_user(
-    user_id: str,
+    user_id: str = Form(...),
     images: List[UploadFile] = File(..., description="Multiple face images for registration"),
-    db: Session = Depends(get_db)
+    db: Optional[Session] = Depends(get_db_or_none)
 ):
+    try:
+        user_id = validate_user_id(user_id)
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"Invalid user_id: {str(e)}"
+        )
+    
+    if not images or len(images) == 0:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="At least one image is required for registration"
+        )
+    
     registration_service = get_registration_service()
 
     face_images = []
-    for img_file in images:
+    decode_errors = []
+    for idx, img_file in enumerate(images):
         try:
             image = decode_image(img_file)
-            face_images.append(image)
-        except HTTPException:
+            if image is not None and image.size > 0:
+                face_images.append(image)
+        except HTTPException as exc:
+            decode_errors.append(f"Image {idx + 1}: {exc.detail}")
+            continue
+        except Exception as e:
+            decode_errors.append(f"Image {idx + 1}: Failed to decode - {str(e)}")
             continue
 
     if not face_images:
+        error_msg = "No valid images provided"
+        if decode_errors:
+            error_msg += f". Errors: {', '.join(decode_errors[:3])}"
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="No valid images provided"
+            detail=error_msg
         )
 
-    success, result = registration_service.register_user(db, user_id, face_images)
+    try:
+        success, result = registration_service.register_user(db, user_id, face_images)
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Registration service error: {str(e)}"
+        )
 
     if success:
         return RegisterResponse(
@@ -109,23 +188,46 @@ async def register_user(
             avg_quality_score=result['avg_quality_score'],
             avg_liveness_score=result['avg_liveness_score']
         )
-    else:
-        return RegisterResponse(
-            success=False,
-            error=result.get('error', 'Registration failed')
-        )
+
+    # Format error message from result dict
+    error_message = result.get('error', 'Registration failed')
+    
+    # Build detailed error message
+    if isinstance(result, dict):
+        error_details = [error_message]
+        if 'valid_count' in result and 'required' in result:
+            error_details.append(f"Valid samples: {result['valid_count']}/{result['required']} required")
+        if 'rejected_reasons' in result and result['rejected_reasons']:
+            error_details.append(f"Rejected: {', '.join(result['rejected_reasons'][:3])}")
+        error_message = ". ".join(error_details)
+    
+    status_code = status.HTTP_400_BAD_REQUEST
+    if error_message == 'User already exists' or 'already exists' in error_message.lower():
+        status_code = status.HTTP_409_CONFLICT
+
+    raise HTTPException(status_code=status_code, detail=error_message)
 
 @router.post("/authenticate", response_model=AuthenticateResponse)
 async def authenticate_user(
-    user_id: str,
+    user_id: str = Form(...),
     image: UploadFile = File(..., description="Face image for authentication"),
-    db: Session = Depends(get_db)
+    db: Optional[Session] = Depends(get_db_or_none)
 ):
+    user_id = validate_user_id(user_id)
     authentication_service = get_authentication_service()
 
     face_image = decode_image(image)
 
-    authenticated, result = authentication_service.authenticate(db, user_id, face_image)
+    try:
+        authenticated, result = authentication_service.authenticate(db, user_id, face_image)
+    except RuntimeError as exc:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(exc)) from exc
+
+    if result['reason'] == 'User not found':
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+
+    if result['reason'] == 'User account inactive':
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="User account inactive")
 
     return AuthenticateResponse(
         authenticated=result['authenticated'],
@@ -139,8 +241,8 @@ async def authenticate_user(
 @router.post("/identify", response_model=IdentifyResponse)
 async def identify_user(
     image: UploadFile = File(..., description="Unknown face image"),
-    top_k: int = 3,
-    db: Session = Depends(get_db)
+    top_k: int = Query(3, ge=1, le=10),
+    db: Optional[Session] = Depends(get_db_or_none)
 ):
     identification_service = get_identification_service()
 
@@ -158,9 +260,10 @@ async def identify_user(
 
 @router.post("/delete_user")
 async def delete_user(
-    user_id: str,
-    db: Session = Depends(get_db)
+    user_id: str = Form(...),
+    db: Optional[Session] = Depends(get_db_or_none)
 ):
+    user_id = validate_user_id(user_id)
     registration_service = get_registration_service()
 
     success, message = registration_service.delete_user(db, user_id)
@@ -168,8 +271,9 @@ async def delete_user(
     if success:
         return {"success": True, "message": message}
     else:
+        status_code = status.HTTP_404_NOT_FOUND if message == "User not found" else status.HTTP_500_INTERNAL_SERVER_ERROR
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
+            status_code=status_code,
             detail=message
         )
 

@@ -226,5 +226,26 @@ def get_db() -> Session:
         db.close()
 
 def init_db():
-    db_manager.create_tables()
-    print(f"Database initialized: {settings.DATABASE_URL}")
+    """Initialize database based on configuration"""
+    if settings.USE_SUPABASE:
+        print("=" * 60)
+        print("Using Supabase as database backend")
+        print(f"Supabase URL: {settings.SUPABASE_URL}")
+        print("=" * 60)
+        # Test Supabase connection
+        try:
+            from app.database.supabase_client import get_supabase_client
+            client = get_supabase_client()
+            # Test query
+            client.table("users").select("id").limit(1).execute()
+            print("✅ Supabase connection successful")
+        except Exception as e:
+            print(f"⚠️  Supabase connection test failed: {e}")
+            print("Please ensure:")
+            print("  1. Supabase schema is set up (run supabase_schema.sql)")
+            print("  2. Supabase credentials are correct")
+            print("  3. Network connectivity to Supabase")
+    else:
+        db_manager.create_tables()
+        print(f"Database initialized: {settings.DATABASE_URL}")
+        print("Using SQLAlchemy (SQLite/PostgreSQL)")

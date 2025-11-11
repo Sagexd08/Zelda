@@ -45,6 +45,7 @@ sqlalchemy==2.0.23
 alembic==1.13.0
 psycopg2-binary==2.9.9
 asyncpg==0.29.0
+supabase==2.3.4
 
 # ============================================
 # Security & Encryption
@@ -63,6 +64,7 @@ requests==2.31.0
 aiofiles==23.2.1
 slowapi==0.1.9
 redis==5.0.1
+PyYAML==6.0.1
 
 # ============================================
 # Visualization

@@ -1,0 +1,98 @@
+# Auto detect text files and perform LF normalization
+* text=auto
+
+# Explicitly declare text files you want to always be normalized and converted to native line endings on checkout.
+*.py text eol=lf
+*.js text eol=lf
+*.jsx text eol=lf
+*.json text eol=lf
+*.md text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+*.toml text eol=lf
+*.ini text eol=lf
+*.cfg text eol=lf
+*.sh text eol=lf
+*.bat text eol=crlf
+
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.pdf binary
+*.zip binary
+*.tar binary
+*.gz binary
+*.7z binary
+*.pth binary
+*.pt binary
+*.onnx binary
+*.pb binary
+*.h5 binary
+*.hdf5 binary
+
+*.pth binary
+*.ckpt binary
+
+*.db binary
+*.sqlite binary
+*.sqlite3 binary
+
+# Compiled files
+__pycache__/ linguist-generated=true
+*.py[cod] linguist-generated=true
+*.so linguist-generated=true
+*.o linguist-generated=true
+
+# Distribution / packaging
+.Python linguist-generated=true
+build/ linguist-generated=true
+dist/ linguist-generated=true
+*.egg-info/ linguist-generated=true
+*.egg linguist-generated=true
+
+# Virtual environments
+venv/ linguist-generated=true
+env/ linguist-generated=true
+ENV/ linguist-generated=true
+
+# IDEs
+.vscode/ linguist-generated=true
+.idea/ linguist-generated=true
+*.swp linguist-generated=true
+*.swo linguist-generated=true
+
+# OS files
+.DS_Store linguist-generated=true
+Thumbs.db linguist-generated=true
+
+# Logs
+*.log linguist-generated=true
+logs/ linguist-generated=true
+
+# Node modules
+node_modules/ linguist-generated=true
+
+# Test coverage
+htmlcov/ linguist-generated=true
+.coverage linguist-generated=true
+.coverage.* linguist-generated=true
+.pytest_cache/ linguist-generated=true
+
+# Linter
+.mypy_cache/ linguist-generated=true
+.ruff_cache/ linguist-generated=true
+
+# Weights directory
+weights/ linguist-generated=true
+
+# Data directory
+data/ linguist-generated=true
+
+# Jupyter Notebooks
+*.ipynb linguist-generated=true
+
+# Frontend build
+frontend/dist/ linguist-generated=true
+

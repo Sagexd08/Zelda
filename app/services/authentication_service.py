@@ -156,7 +156,11 @@ class AuthenticationService:
         else:
             user.failed_attempts += 1
         user.last_authentication = datetime.utcnow()
-        db.commit()
+        try:
+            db.commit()
+        except Exception as exc:
+            db.rollback()
+            raise RuntimeError("Failed to persist authentication state") from exc
 
         return authenticated, {
             'authenticated': authenticated,
@@ -228,7 +232,11 @@ class AuthenticationService:
         )
 
         db.add(audit_log)
-        db.commit()
+        try:
+            db.commit()
+        except Exception as exc:
+            db.rollback()
+            raise RuntimeError("Failed to persist authentication audit log") from exc
 
 _authentication_service_instance: Optional[AuthenticationService] = None
 

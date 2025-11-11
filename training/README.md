@@ -12,6 +12,16 @@ python train_fusion.py --synthetic --epochs 30
 
 The fusion MLP will improve embedding accuracy by ~3% through learned weighted fusion.
 
+## Configuration & Experiment Tracking
+
+All training scripts now accept a shared JSON/YAML config via `--config`. Use `training/config.example.yaml` as a starting point:
+
+```bash
+python train_fusion.py --config training/config.example.yaml --synthetic
+```
+
+The config seeds Python/NumPy/PyTorch for reproducibility, centralises hyperparameters, and records metrics to timestamped JSON files under `logs/experiments/`.
+
 ## Training Scripts
 
 ### 1. `train_liveness.py` - Liveness Detection Training
@@ -21,10 +31,8 @@ Train CNN-based liveness detector on CASIA-FASD or CelebA-Spoof dataset.
 ```bash
 python training/train_liveness.py \
     --data_root /path/to/liveness_dataset \
-    --output_dir ./checkpoints \
-    --batch_size 32 \
-    --epochs 50 \
-    --lr 0.001
+    --config training/config.example.yaml \
+    --output_dir ./checkpoints
 ```
 
 **Dataset Structure:**
@@ -46,13 +54,14 @@ Train the fusion MLP to combine embeddings from multiple models (ArcFace, FaceNe
 
 **Usage with Synthetic Data (Quick):**
 ```bash
-python train_fusion.py --synthetic --num_identities 100 --samples_per_id 15 --epochs 30
+python train_fusion.py --synthetic --num_identities 100 --samples_per_id 15 --epochs 30 \
+    --config training/config.example.yaml
 ```
 
 **Usage with Real Data:**
 ```bash
 # Organize your data as: data_dir/person_id/image.jpg
-python train_fusion.py --data_dir /path/to/face/dataset --epochs 50 --batch_size 32
+python train_fusion.py --data_dir /path/to/face/dataset --config training/config.example.yaml
 ```
 
 **Arguments:**
@@ -76,11 +85,17 @@ python train_fusion.py --data_dir /path/to/face/dataset --epochs 50 --batch_size
 - Memory: ~500 MB
 - Improvement: +3-5% accuracy over simple averaging
 
-### 3. `train_embeddings.py` - Embedding Model Fine-tuning
-Fine-tune ArcFace/FaceNet on custom face recognition dataset.
+### 3. `train_temporal_lstm.py` - Temporal Liveness Training
+Train Temporal LSTM for video-based liveness detection.
 
-### 4. `train_temporal.py` - Temporal Liveness Training
-Train LSTM for video-based liveness detection.
+**Usage:**
+```bash
+python training/train_temporal_lstm.py \
+    --data_root /path/to/videos \
+    --config training/config.example.yaml
+```
+
+The script leverages `training/dataset_loaders.get_temporal_liveness_dataloader`, which now validates sequence availability and enforces deterministic feature extraction for reproducible experiments.
 
 ## Datasets
 

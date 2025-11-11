@@ -36,6 +36,23 @@ yarn-error.log
 .env.development.local
 .env.test.local
 .env.production.local
+.env.*
+
+# Database files
+*.db
+*.db-journal
+*.sqlite
+*.sqlite3
+
+# Coverage reports
+.coverage
+coverage/
+*.cover
+.hypothesis/
+.pytest_cache/
+
+# Cursor IDE
+.cursor/
 
 # IDE
 .idea/

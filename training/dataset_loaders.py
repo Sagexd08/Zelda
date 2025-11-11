@@ -28,6 +28,9 @@ class FaceVerificationDataset(Dataset):
                     name1, img1, name2, img2, label = parts[:5]
                     pairs.append((name1, img1, name2, img2, int(label)))
 
+        if not pairs:
+            raise RuntimeError(f"No face verification pairs found in {pairs_file}")
+
         return pairs
 
     def __len__(self) -> int:
@@ -83,6 +86,9 @@ class LivenessDataset(Dataset):
             for img_path in spoof_dir.glob('**/*.png'):
                 samples.append((str(img_path), 0))
 
+        if not samples:
+            raise RuntimeError(f"No liveness samples found under {self.data_root}")
+
         return samples
 
     def __len__(self) -> int:
@@ -130,6 +136,9 @@ class FaceRecognitionDataset(Dataset):
                 samples.append((str(img_path), idx))
             for img_path in identity_dir.glob('*.png'):
                 samples.append((str(img_path), idx))
+
+        if not samples:
+            raise RuntimeError(f"No face recognition images found under {self.data_root}")
 
         return samples, class_to_idx
 
@@ -180,6 +189,9 @@ class TemporalLivenessDataset(Dataset):
             for video_path in spoof_dir.glob('**/*.avi'):
                 videos.append((str(video_path), 0))
 
+        if not videos:
+            raise RuntimeError(f"No temporal liveness videos found under {self.data_root}")
+
         return videos
 
     def __len__(self) -> int:
@@ -191,9 +203,11 @@ class TemporalLivenessDataset(Dataset):
         frames = self._load_video_frames(video_path)
 
         if len(frames) == 0:
-            return torch.zeros(self.sequence_length, 20), label
+            raise RuntimeError(f"Video {video_path} contains no readable frames")
 
-        features = np.random.randn(min(len(frames), self.sequence_length), 20).astype(np.float32)
+        usable_length = min(len(frames), self.sequence_length)
+        rng = np.random.default_rng(abs(hash(video_path)) % (2**32))
+        features = rng.standard_normal((usable_length, 20), dtype=np.float32)
 
         if len(features) < self.sequence_length:
             padding = np.zeros((self.sequence_length - len(features), 20), dtype=np.float32)
@@ -243,6 +257,25 @@ def get_liveness_dataloader(
     transform=None
 ) -> DataLoader:
     dataset = LivenessDataset(data_root, split, transform)
+
+    return DataLoader(
+        dataset,
+        batch_size=batch_size,
+        shuffle=shuffle,
+        num_workers=num_workers,
+        pin_memory=True
+    )
+
+
+def get_temporal_liveness_dataloader(
+    data_root: str,
+    split: str = 'train',
+    batch_size: int = 16,
+    shuffle: bool = True,
+    num_workers: int = 4,
+    sequence_length: int = 30
+) -> DataLoader:
+    dataset = TemporalLivenessDataset(data_root, sequence_length, split)
 
     return DataLoader(
         dataset,

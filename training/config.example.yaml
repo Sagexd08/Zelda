@@ -1,0 +1,23 @@
+# Base experiment defaults for Zelda facial authentication pipelines
+seed: 1337
+output_dir: artifacts
+experiment_log_dir: logs/experiments
+
+train_fusion:
+  epochs: 40
+  batch_size: 64
+  learning_rate: 0.0005
+  num_workers: 4
+
+train_liveness:
+  epochs: 60
+  batch_size: 48
+  learning_rate: 0.0003
+  num_workers: 6
+
+train_temporal:
+  epochs: 45
+  batch_size: 12
+  learning_rate: 0.0008
+  num_workers: 4
+  sequence_length: 40

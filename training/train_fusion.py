@@ -2,22 +2,25 @@
 import sys
 sys.path.append('..')
 
+import argparse
+from pathlib import Path
+
+import cv2
+import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
 from torch.utils.data import Dataset, DataLoader
-import numpy as np
-from pathlib import Path
-import argparse
 from tqdm import tqdm
-import cv2
 
-from app.models.fusion_model import FusionMLP
-from app.models.face_detector import get_face_detector
-from app.models.face_aligner import get_face_aligner
-from app.models.embedding_extractor import get_embedding_extractor, cosine_similarity
 from app.core.config import settings
+from app.models.embedding_extractor import get_embedding_extractor, cosine_similarity
+from app.models.face_aligner import get_face_aligner
+from app.models.face_detector import get_face_detector
+from app.models.fusion_model import FusionMLP
+from training.config_utils import load_training_config, set_global_seed
+from training.experiment_tracker import ExperimentTracker
 
 class EmbeddingPairDataset(Dataset):
 
@@ -135,8 +138,9 @@ def train_fusion_mlp(
     device,
     epochs=50,
     lr=0.001,
-    save_path="weights/fusion_mlp.pth"
-):
+    save_path="weights/fusion_mlp.pth",
+    tracker: ExperimentTracker | None = None,
+) -> float:
     model = FusionMLP().to(device)
 
     criterion = ContrastiveLoss(margin=0.5)
@@ -188,6 +192,16 @@ def train_fusion_mlp(
 
         print(f"Epoch {epoch+1}: Train Loss = {train_loss:.4f}, Val Loss = {val_loss:.4f}")
 
+        if tracker:
+            tracker.log_epoch(
+                epoch=epoch + 1,
+                metrics={
+                    "train_loss": float(train_loss),
+                    "val_loss": float(val_loss),
+                    "learning_rate": optimizer.param_groups[0]["lr"],
+                },
+            )
+
         if val_loss < best_val_loss:
             best_val_loss = val_loss
             Path(save_path).parent.mkdir(parents=True, exist_ok=True)
@@ -195,27 +209,58 @@ def train_fusion_mlp(
             print(f"✓ Model saved to {save_path}")
 
     print(f"\nTraining complete! Best validation loss: {best_val_loss:.4f}")
+    return float(best_val_loss)
 
 def main():
     parser = argparse.ArgumentParser(description='Train Fusion MLP')
+    parser.add_argument('--config', type=str, default=None,
+                        help='Path to JSON/YAML config file')
     parser.add_argument('--data_dir', type=str, default=None,
-                       help='Directory with face images organized by identity')
+                        help='Directory with face images organized by identity')
     parser.add_argument('--synthetic', action='store_true',
-                       help='Use synthetic data instead of real images')
-    parser.add_argument('--num_identities', type=int, default=200,
-                       help='Number of identities for synthetic data')
-    parser.add_argument('--samples_per_id', type=int, default=20,
-                       help='Samples per identity for synthetic data')
-    parser.add_argument('--epochs', type=int, default=50,
-                       help='Number of training epochs')
-    parser.add_argument('--batch_size', type=int, default=32,
-                       help='Batch size')
-    parser.add_argument('--lr', type=float, default=0.001,
-                       help='Learning rate')
-    parser.add_argument('--output', type=str, default='weights/fusion_mlp.pth',
-                       help='Output path for trained model')
+                        help='Use synthetic data instead of real images')
+    parser.add_argument('--num_identities', type=int, default=None,
+                        help='Number of identities for synthetic data')
+    parser.add_argument('--samples_per_id', type=int, default=None,
+                        help='Samples per identity for synthetic data')
+    parser.add_argument('--epochs', type=int, default=None,
+                        help='Number of training epochs')
+    parser.add_argument('--batch_size', type=int, default=None,
+                        help='Batch size')
+    parser.add_argument('--lr', type=float, default=None,
+                        help='Learning rate')
+    parser.add_argument('--seed', type=int, default=None,
+                        help='Random seed override')
+    parser.add_argument('--output', type=str, default=None,
+                        help='Output path for trained model')
 
     args = parser.parse_args()
+
+    config = load_training_config(args.config)
+    fusion_cfg = config["train_fusion"]
+
+    seed = args.seed if args.seed is not None else config["seed"]
+    set_global_seed(seed)
+
+    epochs = args.epochs or fusion_cfg["epochs"]
+    batch_size = args.batch_size or fusion_cfg["batch_size"]
+    lr = args.lr or fusion_cfg["learning_rate"]
+    num_identities = args.num_identities or 200
+    samples_per_id = args.samples_per_id or 20
+    output_path = Path(args.output or Path(config["output_dir"]) / "fusion_mlp.pth")
+
+    tracker = ExperimentTracker(
+        experiment_name="fusion_mlp",
+        output_dir=config["experiment_log_dir"],
+        config={
+            "seed": seed,
+            "epochs": epochs,
+            "batch_size": batch_size,
+            "learning_rate": lr,
+            "data_dir": args.data_dir,
+            "synthetic": args.synthetic or args.data_dir is None,
+        },
+    )
 
     device = settings.get_device()
     print(f"Using device: {device}")
@@ -223,8 +268,8 @@ def main():
     if args.synthetic or args.data_dir is None:
         print("\n=== Using Synthetic Data ===")
         embeddings_list, labels = generate_synthetic_data(
-            num_identities=args.num_identities,
-            samples_per_identity=args.samples_per_id
+            num_identities=num_identities,
+            samples_per_identity=samples_per_id
         )
     else:
         print(f"\n=== Extracting Embeddings from {args.data_dir} ===")
@@ -239,7 +284,13 @@ def main():
             extractor
         )
 
+    if not embeddings_list:
+        raise RuntimeError("No embeddings extracted for training. Check input data or model configuration.")
+
     split_idx = int(len(embeddings_list) * 0.8)
+    if split_idx == 0 or split_idx == len(embeddings_list):
+        raise RuntimeError("Insufficient data to create train/validation splits. Collect more samples.")
+
     train_embeddings = embeddings_list[:split_idx]
     train_labels = labels[:split_idx]
     val_embeddings = embeddings_list[split_idx:]
@@ -251,16 +302,24 @@ def main():
     train_dataset = EmbeddingPairDataset(train_embeddings, train_labels)
     val_dataset = EmbeddingPairDataset(val_embeddings, val_labels)
 
-    train_loader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True)
-    val_loader = DataLoader(val_dataset, batch_size=args.batch_size, shuffle=False)
+    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
+    val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False)
 
-    train_fusion_mlp(
+    best_val_loss = train_fusion_mlp(
         train_loader,
         val_loader,
         device,
-        epochs=args.epochs,
-        lr=args.lr,
-        save_path=args.output
+        epochs=epochs,
+        lr=lr,
+        save_path=str(output_path),
+        tracker=tracker
+    )
+
+    tracker.finalize(
+        {
+            "best_val_loss": best_val_loss,
+            "model_path": str(output_path),
+        }
     )
 
 if __name__ == "__main__":
